@@ -1,0 +1,95 @@
+# CrestSuite on Render — https://render.com/docs/blueprint-spec
+#
+# Two Docker services and one PostgreSQL instance:
+#   crestsuite-portal  public; serves LeaveMS + QMS + the ClockIT SPA and
+#                      proxies /clockit/api to the API service
+#   clockit-api        the ClockIT Express/Prisma API (internal traffic only)
+#
+# Redis is NOT needed: REDIS_URL is declared in config but nothing uses it.
+#
+# One database serves both: Prisma owns the "User"/"TimeEntry"/... tables and
+# the CrestSuite store owns app_records/app_meta, so they coexist without
+# colliding. That matters because Render's managed role cannot CREATE DATABASE.
+
+databases:
+  - name: crestsuite-db
+    databaseName: crestsuite
+    user: crestsuite
+    plan: basic-256mb # "free" works for evaluation but expires after 30 days
+
+services:
+  # ---------------- ClockIT API ----------------
+  - type: web
+    name: clockit-api
+    runtime: docker
+    dockerfilePath: ./apps/clockit/Dockerfile
+    dockerContext: ./apps/clockit
+    healthCheckPath: /health
+    # Prisma migrations run on container start (see the Dockerfile CMD)
+    envVars:
+      # Pinned so the portal can reach it at a known internal address
+      - key: PORT
+        value: 3000
+      - key: DATABASE_URL
+        fromDatabase:
+          name: crestsuite-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: PORTAL_SECRET
+        generateValue: true
+      # Public URL of the portal — used in invitation/reset emails
+      - key: APP_URL
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: SMTP_FROM
+        sync: false
+
+  # ---------------- Portal (public) ----------------
+  - type: web
+    name: crestsuite-portal
+    runtime: docker
+    dockerfilePath: ./portal/Dockerfile
+    dockerContext: .
+    # QMS keeps its audit trail and signing key on disk. Without this the audit
+    # trail is lost on every deploy — see the notes in the README.
+    disk:
+      name: qms-data
+      mountPath: /suite/apps/qms/data
+      sizeGB: 1
+    envVars:
+      - key: CLOCKIT_API_URL
+        value: http://clockit-api:3000
+      # Must match the API's value — the SSO handshake is signed with it
+      - key: PORTAL_SECRET
+        fromService:
+          type: web
+          name: clockit-api
+          envVarKey: PORTAL_SECRET
+      - key: CRESTSUITE_DATABASE_URL
+        fromDatabase:
+          name: crestsuite-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: QMS_SECRET
+        generateValue: true
+      - key: PORTAL_URL
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: SMTP_FROM
+        sync: false

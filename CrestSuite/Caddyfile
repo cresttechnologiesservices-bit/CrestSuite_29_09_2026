@@ -1,0 +1,11 @@
+# Caddy fetches and renews a Let's Encrypt certificate automatically, provided
+# SITE_ADDRESS is a real domain pointing at this server and ports 80/443 are
+# reachable. Set SITE_ADDRESS to :80 to run plain HTTP without a domain.
+{$SITE_ADDRESS} {
+	encode zstd gzip
+	# Uploads (QMS documents, CSV imports) need more than the 10MB default
+	request_body {
+		max_size 25MB
+	}
+	reverse_proxy portal:8080
+}

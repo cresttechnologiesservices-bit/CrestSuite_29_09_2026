@@ -1,0 +1,95 @@
+# CrestSuite — production stack for a single VM (e.g. Oracle Cloud Always Free).
+#
+# Differences from docker-compose.yml (local development):
+#   * every secret comes from .env — nothing sensitive is committed
+#   * restart: unless-stopped, so the suite survives a reboot
+#   * Caddy terminates TLS and is the only thing exposed to the internet
+#   * Postgres is NOT published on the host — it is reachable only inside the
+#     compose network
+#   * no Redis: REDIS_URL is declared in the API config but nothing uses it
+#
+# Usage:  docker compose -f docker-compose.prod.yml up -d --build
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  clockit-api:
+    build: ./apps/clockit
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      JWT_SECRET: ${JWT_SECRET}
+      PORTAL_SECRET: ${PORTAL_SECRET}
+      # Public URL — used in invitation and password-reset emails
+      APP_URL: ${PUBLIC_URL}
+      API_URL: http://clockit-api:3000
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASS: ${SMTP_PASS}
+      SMTP_FROM: ${SMTP_FROM}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  portal:
+    build:
+      context: .
+      dockerfile: portal/Dockerfile
+    restart: unless-stopped
+    environment:
+      PORTAL_URL: ${PUBLIC_URL}
+      PORTAL_SECRET: ${PORTAL_SECRET}
+      JWT_SECRET: ${LEAVEMS_JWT_SECRET}
+      # Pins the QMS session-signing key so deploys do not sign everyone out
+      QMS_SECRET: ${QMS_SECRET}
+      CRESTSUITE_DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/crestsuite
+      CRESTSUITE_ADMIN_DB: ${POSTGRES_DB}
+      CLOCKIT_API_URL: http://clockit-api:3000
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASS: ${SMTP_PASS}
+      SMTP_FROM: ${SMTP_FROM}
+    volumes:
+      # QMS writes its hash-chained audit trail here — back this up
+      - qmsdata:/suite/apps/qms/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      clockit-api:
+        condition: service_started
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - portal
+
+volumes:
+  pgdata:
+  qmsdata:
+  caddy_data:
+  caddy_config:

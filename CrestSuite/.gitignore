@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.env.local
+*.log
+
+# Environment files hold live credentials — never commit them
+.env
+.env.production
+.env.local
+apps/clockit/.env
+apps/clockit/apps/api/.env
+*.log
