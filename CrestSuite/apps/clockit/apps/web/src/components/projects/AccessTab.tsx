@@ -279,7 +279,7 @@ export function AccessTab({ projectId, project }: { projectId: string; project: 
       await api.patch(`/projects/${projectId}`, { visibility });
     },
     onSuccess: invalidate,
-    onError: (e: any) => toast(e?.response?.data?.message || e?.response?.data?.error || "Could not remove the member", "error"),
+    onError: (e: any) => toast(e?.response?.data?.message || e?.response?.data?.error || "Could not change the visibility", "error"),
   });
 
   const addMemberMutation = useMutation({
