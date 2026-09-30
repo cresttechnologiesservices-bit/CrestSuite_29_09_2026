@@ -50,6 +50,8 @@ services:
       context: .
       dockerfile: portal/Dockerfile
     restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:8080"
     environment:
       PORTAL_URL: ${PUBLIC_URL}
       PORTAL_SECRET: ${PORTAL_SECRET}
