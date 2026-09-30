@@ -5,6 +5,7 @@ dist/
 
 # Environment files hold live credentials — never commit them
 .env
+.env.example
 .env.production
 .env.local
 apps/clockit/.env
