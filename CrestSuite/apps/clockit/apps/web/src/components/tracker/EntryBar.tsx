@@ -14,6 +14,7 @@ interface Props {
   setProjectId: (v: string) => void;
   taskId: string;
   setTaskId: (v: string) => void;
+  onSelectTask?: (taskId: string) => void;
   tags: string[];
   setTags: (v: string[]) => void;
   billable: boolean;
@@ -66,11 +67,20 @@ export function EntryBar(props: Props) {
   return (
     <div className="bg-white border rounded-lg shadow-sm">
       <div className="p-4 flex flex-wrap gap-3 items-center">
-        <input
-          className="flex-1 min-w-[200px] border rounded px-3 py-2"
+        <textarea
+          className="flex-1 min-w-[200px] border rounded px-3 py-2 resize-none"
           placeholder="What are you working on?"
           value={props.desc}
+          rows={1}
           onChange={(e) => props.setDesc(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey && !e.altKey) {
+              e.preventDefault();
+              if (!props.running) {
+                if (props.projectId) props.onStart();
+              }
+            }
+          }}
         />
         <div className="flex items-center gap-1">
           <select
@@ -100,7 +110,11 @@ export function EntryBar(props: Props) {
             <select
               className="border rounded px-2 py-2 text-sm max-w-[160px] disabled:bg-slate-50 disabled:text-slate-400"
               value={props.taskId}
-              onChange={(e) => props.setTaskId(e.target.value)}
+              onChange={(e) => {
+                const id = e.target.value;
+                props.setTaskId(id);
+                if (id && props.onSelectTask) props.onSelectTask(id);
+              }}
               disabled={props.tasks.length === 0}
               title={props.tasks.length ? "Sub-task" : "This project has no sub-tasks yet"}
             >
