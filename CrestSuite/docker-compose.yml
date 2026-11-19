@@ -1,3 +1,4 @@
+
 # # CrestSuite — full containerized stack.
 # #
 # #   docker compose up -d --build
@@ -16,15 +17,15 @@
 #   postgres:
 #     image: postgres:16-alpine
 #     environment:
-#       POSTGRES_USER: clockit
-#       POSTGRES_PASSWORD: clockit
-#       POSTGRES_DB: clockit
+#       POSTGRES_USER: ${POSTGRES_USER}
+#       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+#       POSTGRES_DB: ${POSTGRES_DB}
 #     ports:
 #       - "5433:5432"
 #     volumes:
 #       - pgdata:/var/lib/postgresql/data
 #     healthcheck:
-#       test: ["CMD-SHELL", "pg_isready -U clockit"]
+#       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
 #       interval: 3s
 #       timeout: 3s
 #       retries: 20
@@ -34,21 +35,20 @@
 #     ports:
 #       - "6379:6379"
 
-#   mailhog:
-#     image: mailhog/mailhog
-#     ports:
-#       - "1025:1025"   # SMTP
-#       - "8025:8025"   # web inbox
-
 #   clockit-api:
 #     build: ./apps/clockit
 #     environment:
-#       DATABASE_URL: postgresql://clockit:clockit@postgres:5432/clockit
+#       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
 #       REDIS_URL: redis://redis:6379
-#       JWT_SECRET: change-me-in-prod
-#       PORTAL_SECRET: crestsuite-portal-dev-secret-change-in-production
-#       SMTP_HOST: mailhog
-#       SMTP_PORT: 1025
+#       JWT_SECRET: ${JWT_SECRET}
+#       PORTAL_SECRET: ${PORTAL_SECRET}
+
+#       SMTP_HOST: ${SMTP_HOST}
+#       SMTP_PORT: ${SMTP_PORT}
+#       SMTP_USER: ${SMTP_USER}
+#       SMTP_PASS: ${SMTP_PASS}
+#       SMTP_FROM: ${SMTP_FROM}
+
 #       APP_URL: http://localhost:8080
 #       API_URL: http://clockit-api:3000
 #     depends_on:
@@ -64,13 +64,18 @@
 #     environment:
 #       PORTAL_PORT: 8080
 #       PORTAL_URL: http://localhost:8080
-#       PORTAL_SECRET: crestsuite-portal-dev-secret-change-in-production
-#       JWT_SECRET: leavems-dev-secret-change-in-production
-#       CRESTSUITE_DATABASE_URL: postgresql://clockit:clockit@postgres:5432/crestsuite
-#       CRESTSUITE_ADMIN_DB: clockit
+#       PORTAL_SECRET: ${PORTAL_SECRET}
+#       JWT_SECRET: ${JWT_SECRET}
+#       CRESTSUITE_DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/crestsuite
+#       CRESTSUITE_ADMIN_DB: ${POSTGRES_DB}
 #       CLOCKIT_API_URL: http://clockit-api:3000
-#       SMTP_HOST: mailhog
-#       SMTP_PORT: 1025
+
+#       SMTP_HOST: ${SMTP_HOST}
+#       SMTP_PORT: ${SMTP_PORT}
+#       SMTP_USER: ${SMTP_USER}
+#       SMTP_PASS: ${SMTP_PASS}
+#       SMTP_FROM: ${SMTP_FROM}
+
 #     ports:
 #       - "8080:8080"
 #     volumes:
@@ -86,19 +91,6 @@
 #     name: clockit_pgdata   # renamed from clockify_pgdata; data was copied across
 #   qmsdata:
 
-
-# CrestSuite — full containerized stack.
-#
-#   docker compose up -d --build
-#   -> portal (with LeaveMS + QMS in-process and the ClockIT web app) on :8080
-#   -> ClockIT API in its own container (proxied by the portal, not published)
-#   -> PostgreSQL / Redis / MailHog
-#
-# NOTE: this reuses the SAME PostgreSQL volume (clockit_pgdata) as the old
-# apps/clockit/docker-compose.yml, so all existing data carries over. Stop
-# that older stack first (`docker compose down` inside apps/clockit) —
-# both publish 5433. For local non-Docker dev, keep using `npm start`.
-
 name: crestsuite
 
 services:
@@ -109,7 +101,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -121,7 +113,7 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
 
   clockit-api:
     build: ./apps/clockit
