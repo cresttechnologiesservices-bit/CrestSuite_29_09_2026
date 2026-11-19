@@ -168,5 +168,5 @@ services:
 
 volumes:
   pgdata:
-    name: clockit_pgdata   # renamed from clockify_pgdata; data was copied across
+    name: crestsuite_pgdata   # renamed from clockify_pgdata; data was copied across
   qmsdata:
