@@ -207,6 +207,7 @@ model Task {
   name        String
   status      String      @default("active")
   assignees   Json        @default("[]")
+  billable    Boolean     @default(true)
   project     Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
   timeEntries TimeEntry[]
 
