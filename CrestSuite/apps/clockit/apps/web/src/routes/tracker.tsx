@@ -13,7 +13,7 @@ import {
   weekLabel,
   weekStartKey,
 } from "../components/tracker/format";
-import { confirmDialog } from "../components/ui/notify";
+import { confirmDialog, toast } from "../components/ui/notify";
 import { useCustomFields, defaultValuesFor } from "../components/customFields/CustomFieldInputs";
 
 function errMessage(e: any) {
@@ -30,6 +30,10 @@ function errMessage(e: any) {
   if (code === "end_or_duration_required") return "Please provide an end time.";
   if (code === "admin_entries_billable_only") return "Another administrator's entries: only the billable status can be changed.";
   return "Something went wrong.";
+}
+
+function isProjectAccessDenied(e: any): boolean {
+  return e?.response?.data?.error === "project_access_denied";
 }
 
 export function Tracker() {
@@ -87,6 +91,14 @@ export function Tracker() {
   function selectProject(id: string) {
     setProjectId(id);
     setTaskId(""); // a task belongs to one project
+    const project = projects.find((p: any) => p.id === id);
+    if (project) setBillable(project.billableDefault ?? false);
+  }
+
+  // When a task is selected in the bar, override billable from the task's own flag
+  function selectTask(taskId: string) {
+    const task = projectTasks.find((t: any) => t.id === taskId);
+    if (task) setBillable(task.billable ?? false);
   }
 
   // REQ-TT-B12: running timer is persisted server-side and survives refresh
@@ -133,7 +145,13 @@ export function Tracker() {
       setError(null);
       invalidate();
     },
-    onError: (e) => setError(errMessage(e)),
+    onError: (e: any) => {
+      if (isProjectAccessDenied(e)) {
+        toast(e.response.data.message, "error");
+      } else {
+        setError(errMessage(e));
+      }
+    },
   });
 
   const stopMutation = useMutation({
@@ -155,15 +173,25 @@ export function Tracker() {
       setDesc("");
       invalidate();
     },
-    onError: (e) => setError(errMessage(e)),
+    onError: (e: any) => {
+      if (isProjectAccessDenied(e)) {
+        toast(e.response.data.message, "error");
+      } else {
+        setError(errMessage(e));
+      }
+    },
   });
 
   const patchMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: any }) =>
       (await api.patch(`/time-entries/${id}`, data)).data,
     onSuccess: invalidate,
-    onError: (e) => {
-      setError(errMessage(e));
+    onError: (e: any) => {
+      if (isProjectAccessDenied(e)) {
+        toast(e.response.data.message, "error");
+      } else {
+        setError(errMessage(e));
+      }
       invalidate(); // reset any inline-edited fields to the persisted values
     },
   });
@@ -254,8 +282,23 @@ export function Tracker() {
 
   // The Project label on a row ("No project" or a project name) is editable,
   // including the project's task — always picked from the project's task list.
-  function handleChangeProject(entry: any, projectId: string | null, taskId: string | null) {
-    patchMutation.mutate({ id: entry.id, data: { projectId, taskId } });
+  async function handleChangeProject(entry: any, newProjectId: string | null, newTaskId: string | null) {
+    const data: any = { projectId: newProjectId, taskId: newTaskId };
+    // If a task was selected, fetch its billable flag and apply it to the entry
+    if (newTaskId) {
+      try {
+        const tasks = (await api.get(`/projects/${newProjectId}/tasks`)).data as any[];
+        const task = tasks.find((t: any) => t.id === newTaskId);
+        if (task) data.billable = task.billable;
+      } catch {
+        // non-critical — proceed without overriding billable
+      }
+    } else if (newProjectId) {
+      // No task selected — fall back to the project's billableDefault
+      const project = projects.find((p: any) => p.id === newProjectId);
+      if (project) data.billable = project.billableDefault ?? false;
+    }
+    patchMutation.mutate({ id: entry.id, data });
   }
 
   // Edit the recorded start/end of an existing entry; the duration follows
@@ -441,6 +484,7 @@ export function Tracker() {
         setProjectId={selectProject}
         taskId={taskId}
         setTaskId={setTaskId}
+        onSelectTask={selectTask}
         tags={tags}
         setTags={setTags}
         billable={billable}
